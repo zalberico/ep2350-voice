@@ -1,0 +1,75 @@
+{
+ "name": "CLAUDE MARKERS",
+ "samples": [
+  {
+   "pos": 0,
+   "file": "chirp.wav",
+   "playmode": "oneshot"
+  },
+  {
+   "pos": 1,
+   "file": "cancel.wav",
+   "playmode": "oneshot"
+  },
+  {
+   "pos": 2,
+   "file": "press.wav",
+   "playmode": "oneshot"
+  },
+  {
+   "pos": 3,
+   "file": "release.wav",
+   "playmode": "oneshot"
+  }
+ ],
+ "presets": [
+  {
+   "pos": 0,
+   "list": [
+    {
+     "effect": "SAMPLE",
+     "level": 1.0
+    }
+   ],
+   "trigger": {
+    "row": 0
+   }
+  },
+  {
+   "pos": 1,
+   "list": [
+    {
+     "effect": "SAMPLE",
+     "level": 1.0
+    }
+   ],
+   "trigger": {
+    "row": 0
+   }
+  },
+  {
+   "pos": 2,
+   "list": [
+    {
+     "effect": "SAMPLE",
+     "level": 1.0
+    }
+   ],
+   "trigger": {
+    "row": 0
+   }
+  },
+  {
+   "pos": 3,
+   "list": [
+    {
+     "effect": "SAMPLE",
+     "level": 1.0
+    }
+   ],
+   "trigger": {
+    "row": 0
+   }
+  }
+ ]
+}
