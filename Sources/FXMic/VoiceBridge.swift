@@ -12,9 +12,11 @@ final class VoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
     private var spokenThrough = 0
     private var activeUtterance: AVSpeechUtterance?
     private var activeReplyID: String?
-    var enabled: Bool { root != nil }
+    private var suspended: Bool
+    var enabled: Bool { root != nil && !suspended }
 
-    override init() {
+    init(suspended: Bool = false) {
+        self.suspended = suspended
         if let path = UserDefaults.standard.string(forKey: "voiceBridgeDirectory"), !path.isEmpty {
             root = URL(fileURLWithPath: path, isDirectory: true)
         } else { root = nil }
@@ -22,9 +24,18 @@ final class VoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
         guard let root else { return }
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         synth.delegate = self
-        event("ready")
-        snapshot()
+        if !suspended { event("ready"); snapshot() }
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.poll() }
+    }
+
+    /// Native voice owns playback. Keep the developer bridge dormant until explicitly selected.
+    func setSuspended(_ value: Bool) {
+        guard value != suspended else { return }
+        stop(reason: "mode_changed")
+        gate.cancel()
+        suspended = value
+        event(value ? "suspended" : "ready")
+        snapshot()
     }
 
     // All methods execute on the main queue, including speech delegate callbacks.
@@ -75,7 +86,7 @@ final class VoiceBridge: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     private func poll() {
-        guard let root else { return }
+        guard enabled, let root else { return }
         let url = root.appendingPathComponent("reply.json")
         guard let data = try? Data(contentsOf: url) else { return }
         do {

@@ -101,14 +101,23 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         case .done: item.button?.image = StatusMenu.compose(base: symbol, check: true)
         case .none: item.button?.image = StatusMenu.compose(base: symbol)
         }
-        item.button?.toolTip = "FXMic: \(controller.state.rawValue). Click to \(controller.state == .idle ? "pick up" : "hang up"), right-click for the menu."
+        if Settings.shared.nativeVoiceMode {
+            let status = controller.state == .idle ? "Feedback off" : (!controller.nativeAudioReady ? "Waiting for input audio" : (controller.state == .listening ? "Handle held" : "Watching handle"))
+            item.button?.toolTip = "EP2350 Voice: \(status). Native apps own voice playback. Right-click for assistants."
+        } else {
+            item.button?.toolTip = "EP2350 Voice: \(controller.state.rawValue). Click to \(controller.state == .idle ? "pick up" : "hang up"), right-click for the menu."
+        }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
         // 1. listening toggle
-        let toggle = NSMenuItem(title: controller.state == .idle ? "Start listening" : "Stop listening", action: #selector(toggleArmed), keyEquivalent: "")
+        let native = Settings.shared.nativeVoiceMode
+        let toggleTitle = native
+            ? (controller.state == .idle ? "Start handle feedback" : "Stop handle feedback")
+            : (controller.state == .idle ? "Start listening" : "Stop listening")
+        let toggle = NSMenuItem(title: toggleTitle, action: #selector(toggleArmed), keyEquivalent: "")
         toggle.target = self
         menu.addItem(toggle)
 
@@ -121,12 +130,46 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             item.state = (dev.name == currentDevice || dev.uid == currentDevice || dev.name.localizedCaseInsensitiveContains(currentDevice)) ? .on : .off
             deviceMenu.addItem(item)
         }
-        let deviceItem = NSMenuItem(title: "Input device", action: nil, keyEquivalent: "")
+        let deviceItem = NSMenuItem(title: native ? "Handle input device" : "Input device", action: nil, keyEquivalent: "")
         deviceItem.submenu = deviceMenu
         menu.addItem(deviceItem)
         menu.addItem(.separator())
 
-        // 3. target session, shown by (truncated) name
+        let modeMenu = NSMenu()
+        for (title, enabled) in [("Native voice (subscriptions)", true), ("Local transcription / bridge", false)] {
+            let option = NSMenuItem(title: title, action: #selector(selectVoiceMode(_:)), keyEquivalent: "")
+            option.target = self; option.representedObject = enabled
+            option.state = native == enabled ? .on : .off
+            modeMenu.addItem(option)
+        }
+        let modeItem = NSMenuItem(title: "Mode", action: nil, keyEquivalent: "")
+        modeItem.submenu = modeMenu
+        menu.addItem(modeItem)
+
+        if native {
+            let providers = NSMenu()
+            for provider in NativeVoiceProvider.allCases {
+                let option = NSMenuItem(title: provider.displayName, action: #selector(selectNativeProvider(_:)), keyEquivalent: "")
+                option.target = self; option.representedObject = provider.rawValue
+                option.state = controller.nativeProvider == provider ? .on : .off
+                providers.addItem(option)
+            }
+            let providerItem = NSMenuItem(title: "Voice assistant: \(controller.nativeProvider.displayName)", action: nil, keyEquivalent: "")
+            providerItem.submenu = providers
+            menu.addItem(providerItem)
+            let open = NSMenuItem(title: "Open \(controller.nativeProvider.displayName)", action: #selector(openNativeApp), keyEquivalent: "")
+            open.target = self; menu.addItem(open)
+            let start = NSMenuItem(title: "Start voice (experimental)", action: #selector(startNativeVoice), keyEquivalent: "")
+            start.target = self; menu.addItem(start)
+            let help = NSMenuItem(title: "Native voice setup and status…", action: #selector(nativeVoiceHelp), keyEquivalent: "")
+            help.target = self; menu.addItem(help)
+            let limitation = NSMenuItem(title: "Squeeze does not control native playback yet", action: nil, keyEquivalent: "")
+            limitation.isEnabled = false; menu.addItem(limitation)
+            menu.addItem(.separator())
+        }
+
+        // The inherited Claude text target is unrelated to native voice.
+        if !native {
         let targetMenu = NSMenu()
         let recent = SessionStore.recent(limit: 5)
         let effective = Settings.shared.targetSessionTitle ?? recent.first?.title
@@ -146,6 +189,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let shake = NSMenuItem(title: "Shake to cancel", action: #selector(toggleShake), keyEquivalent: "")
         shake.target = self; shake.state = Settings.shared.shakeToCancel ? .on : .off
         menu.addItem(shake)
+        }
         let badge = NSMenuItem(title: "Menu bar activity badge", action: #selector(toggleBadge), keyEquivalent: "")
         badge.target = self; badge.state = Settings.shared.statusBadge ? .on : .off
         menu.addItem(badge)
@@ -161,12 +205,23 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // 5. quit
-        let quitItem = NSMenuItem(title: "Quit FXMic", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit EP2350 Voice", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
     }
 
     @objc private func toggleArmed() { controller.toggleArmed(source: "menu item") }
+    @objc private func selectVoiceMode(_ sender: NSMenuItem) {
+        guard let enabled = sender.representedObject as? Bool else { return }
+        controller.setNativeVoiceMode(enabled)
+    }
+    @objc private func selectNativeProvider(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let provider = NativeVoiceProvider(rawValue: raw) else { return }
+        controller.selectNativeProvider(provider)
+    }
+    @objc private func openNativeApp() { controller.openNativeVoiceApp() }
+    @objc private func startNativeVoice() { controller.startNativeVoice() }
+    @objc private func nativeVoiceHelp() { controller.showNativeVoiceHelp() }
     @objc private func statusClicked(_ sender: NSStatusBarButton) {
         let event = NSApp.currentEvent
         let wantsMenu = event?.type == .rightMouseUp || (event?.modifierFlags.contains(.control) ?? false)

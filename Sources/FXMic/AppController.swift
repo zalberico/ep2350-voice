@@ -3,6 +3,15 @@ import AVFoundation
 import FXMicCore
 import SwiftUI
 
+/// Configured before capture starts; subsequent state belongs to that capture's private queue.
+private final class NativeMonitorBox {
+    var monitor: NativeHandleMonitor?
+    var held = false
+    var meterLevel: Float = -60
+    var meterDecayPerHop: Float = 1.5
+    var lastMeterPush = -Double.infinity
+}
+
 /// Owns the audio pipeline, the transcriber, and the dispatch decisions.
 /// Audio state is touched only on the capture queue; UI work is hopped to main.
 final class AppController {
@@ -13,10 +22,11 @@ final class AppController {
     }
 
     func snapshot() {
+        let audio = capture?.diagnostics ?? lastCaptureDiagnostics
         Log.state([
             "state": state.rawValue,
             "device": deviceName ?? "",
-            "transcriberReady": transcriberReady,
+            "transcriberReady": settings.nativeVoiceMode ? false : transcriberReady,
             "target": dispatcher.currentTarget?.title ?? "",
             "targetID": dispatcher.currentTarget?.id ?? "",
             "lastError": lastError ?? "",
@@ -25,6 +35,16 @@ final class AppController {
             "composerDelivery": settings.composerDelivery,
             "shakeToCancel": settings.shakeToCancel,
             "captureRunning": capture?.isRunning ?? false,
+            "audioCallbacks": audio?.rawCallbackCount ?? 0,
+            "audioFrames": audio?.rawFrameCount ?? 0,
+            "audioUsableHops": audio?.usableHopCount ?? 0,
+            "audioFormat": audio?.lastBufferFormat ?? "",
+            "audioDecodeError": audio?.lastDecodeError ?? "",
+            "audioDiagnosticsFromStoppedCapture": capture == nil && lastCaptureDiagnostics != nil,
+            "nativeAudioReady": nativeAudioReady,
+            "nativeVoiceMode": settings.nativeVoiceMode,
+            "nativeVoiceProvider": settings.nativeVoiceProvider,
+            "nativePlaybackControl": "unavailable",
             "accessibilityTrusted": ComposerDelivery.isTrusted,
         ])
     }
@@ -35,7 +55,7 @@ final class AppController {
     let settings = Settings.shared
     let hud = HUDController()
     let dispatcher = Dispatcher()
-    let voiceBridge = VoiceBridge()
+    let voiceBridge = VoiceBridge(suspended: Settings.shared.nativeVoiceMode)
     private let activity = ActivityWatcher()
     private(set) var recent: [(date: Date, text: String, outcome: String)] = []
     private(set) var lastError: String?
@@ -44,6 +64,7 @@ final class AppController {
 
     // Pipeline state, capture queue only.
     private var capture: InputCapture?
+    private var lastCaptureDiagnostics: CaptureDiagnostics?
     private var gate = SpeechGate()
     private var chirps: ChirpDetector?
     private var handleMode = false          // true while an utterance was opened by a press marker: only the release marker ends it
@@ -77,6 +98,15 @@ final class AppController {
     private var lastActivity = Date()
     private var idleTimer: Timer?
     private var pendingDeliveries = 0
+    private var nativeCaptureID = UUID()
+    private(set) var nativeAudioReady = false
+    private var nativeRecoveryAttempts = 0
+    private var nativeRequest: NativeActionToken?
+    private var nativeRequestID = UUID()
+    private(set) var nativeVoiceStatus = "Open the selected app and start its voice mode."
+    var nativeProvider: NativeVoiceProvider {
+        NativeVoiceProvider(rawValue: settings.nativeVoiceProvider) ?? .claude
+    }
 
     // MARK: arm / idle
 
@@ -97,6 +127,8 @@ final class AppController {
 
     func arm() {
         guard state == .idle else { return }
+        lastCaptureDiagnostics = nil
+        nativeRecoveryAttempts = 0
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .notDetermined:
             Log.write("waiting for microphone permission")
@@ -131,10 +163,10 @@ final class AppController {
             lastError = nil
             lastActivity = Date()
             state = .armed
-            ensureTranscriber()
+            if !settings.nativeVoiceMode { ensureTranscriber() }
             startIdleTimer()
             startHeartbeat()
-            if settings.composerDelivery { ComposerDelivery.warmUp() }
+            if !settings.nativeVoiceMode, settings.composerDelivery { ComposerDelivery.warmUp() }
         } catch {
             lastError = "\(error)"
             Log.write("audio error: \(error)")
@@ -145,6 +177,12 @@ final class AppController {
 
     /// Opens the input and builds the detectors for it. Used by arm() and by recovery.
     private func startCapture(device: AudioInputDevice) throws {
+        if settings.nativeVoiceMode {
+            try startNativeCapture(device: device)
+            return
+        }
+        let token = UUID()
+        nativeCaptureID = token
         var config = GateConfig()
         config.openDb = settings.openDb
         config.closeDb = settings.closeDb
@@ -163,10 +201,86 @@ final class AppController {
         ], sampleRate: sampleRate, hopSeconds: hopSeconds)
         handleMode = false
         cap.onStopped = { [weak self] reason in
-            DispatchQueue.main.async { self?.recover(reason: reason) }
+            DispatchQueue.main.async {
+                guard let self, self.nativeCaptureID == token else { return }
+                self.recover(reason: reason)
+            }
         }
         try cap.start()
         capture = cap
+    }
+
+    /// Monitor marker tones without creating a transcriber or delivering speech anywhere.
+    private func startNativeCapture(device: AudioInputDevice) throws {
+        nativeAudioReady = false
+        let token = UUID()
+        nativeCaptureID = token
+        let box = NativeMonitorBox()
+        let cap = try InputCapture(device: device, configureBufferSize: false) { [weak self, box] frame in
+            let events = box.monitor?.process(frame) ?? []
+            for event in events {
+                switch event {
+                case .pressed:
+                    box.held = true
+                    box.meterLevel = -60
+                    box.lastMeterPush = -Double.infinity
+                case .released:
+                    box.held = false
+                case .cancelSignal:
+                    break
+                }
+            }
+            var level: Float?
+            if box.held {
+                // Local input only: instant attack, 150 dB/s release, at most 30 UI updates/s.
+                box.meterLevel = max(Levels.rmsDb(frame), box.meterLevel - box.meterDecayPerHop)
+                let now = ProcessInfo.processInfo.systemUptime
+                if now - box.lastMeterPush >= 1.0 / 30.0 {
+                    box.lastMeterPush = now
+                    level = box.meterLevel
+                }
+            }
+            guard !events.isEmpty || level != nil else { return }
+            DispatchQueue.main.async { [weak self, level] in
+                guard let self, self.nativeCaptureID == token,
+                      self.settings.nativeVoiceMode, self.state != .idle else { return }
+                if !events.isEmpty { self.lastActivity = Date() }
+                for event in events {
+                    switch event {
+                    case .pressed:
+                        Log.write("native handle pressed")
+                        self.state = .listening
+                        self.hud.handleHeld()
+                    case .released:
+                        Log.write("native handle released")
+                        self.state = .armed
+                        self.hud.handleReleased()
+                    case .cancelSignal:
+                        Log.write("native handle cancel marker")
+                        // Native voice may already have heard the audio; never claim it was discarded.
+                        self.hud.flash("Shake detected", tint: .gray, icon: "hand.raised", seconds: 0.8)
+                    }
+                }
+                if let level, self.state == .listening { self.hud.model.level = level }
+            }
+        }
+        sampleRate = cap.sampleRate
+        Log.write("native capture setup: \(cap.setupFormatDescription)")
+        box.monitor = NativeHandleMonitor(sampleRate: cap.sampleRate,
+            hopSeconds: Double(cap.hop) / cap.sampleRate,
+            press: settings.pressFreqs, release: settings.releaseFreqs, cancel: settings.cancelFreqs)
+        box.meterDecayPerHop = Float(Double(cap.hop) / cap.sampleRate * 150)
+        cap.onStopped = { [weak self] reason in
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.nativeCaptureID == token else { return }
+                self.recover(reason: reason)
+            }
+        }
+        try cap.start()
+        capture = cap
+        handleMode = false
+        // Recovery discards the previous detector's held state; do not leave a stale held HUD.
+        if state != .idle { state = .armed; hud.hide() }
     }
 
     // MARK: recovery
@@ -182,14 +296,34 @@ final class AppController {
 
     private func recover(reason: String) {
         guard state != .idle, !recovering else { return }
+        if settings.nativeVoiceMode {
+            nativeAudioReady = false
+            // Drop queued observations from the failed stream and clear stale held feedback now.
+            nativeCaptureID = UUID()
+            state = .armed
+            hud.hide()
+            nativeRecoveryAttempts += 1
+            lastError = "Waiting for usable audio from \(settings.deviceQuery)"
+            if nativeRecoveryAttempts > 3 {
+                lastError = "No usable audio from \(settings.deviceQuery). Input recovery stopped after three attempts."
+                Log.write(lastError!)
+                // Save the failed stream diagnostics before closing it.
+                snapshot()
+                disarm(reason: lastError)
+                hud.flash("No input audio", tint: .red, icon: "mic.slash", seconds: 6)
+                return
+            }
+        }
         recovering = true
+        let recoveryCaptureID = nativeCaptureID
         // Backoff: a storm of interruptions (jack reconfiguring) gets a longer pause instead of a tight loop.
         if Date().timeIntervalSince(lastRecoveryAt) < 10 { recoveriesInWindow += 1 } else { recoveriesInWindow = 0 }
         lastRecoveryAt = Date()
         let delay: TimeInterval = recoveriesInWindow >= 3 ? 2.0 : 0.4
         Log.write("capture interrupted: \(reason); recovering in \(delay) s")
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.state != .idle else { self?.recovering = false; return }
+            guard let self, self.nativeCaptureID == recoveryCaptureID else { return }
+            guard self.state != .idle else { self.recovering = false; return }
             // Device gone (adapter or mic unplugged): hang up at once. The half-second delay above filters blips.
             guard let cap = self.capture, AudioDevices.exists(cap.device.id) else {
                 self.recovering = false
@@ -221,8 +355,22 @@ final class AppController {
         heartbeat?.invalidate()
         heartbeat = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, self.state != .idle, !self.recovering, let cap = self.capture else { return }
+            let diagnostics = cap.diagnostics
+            if self.settings.nativeVoiceMode, diagnostics.usableHopCount > 0,
+               Date().timeIntervalSince(cap.lastHopAt) <= 3 {
+                if !self.nativeAudioReady {
+                    self.nativeAudioReady = true
+                    self.lastError = nil
+                    Log.write("native feedback received usable audio: \(diagnostics.lastBufferFormat ?? "unknown format")")
+                    self.onStateChange?()
+                    self.snapshot()
+                }
+                if Date().timeIntervalSince(cap.startedAt) > 10 { self.nativeRecoveryAttempts = 0 }
+            }
             if !cap.isRunning { self.recover(reason: "engine not running") }
-            else if Date().timeIntervalSince(cap.lastHopAt) > 3 { self.recover(reason: "no audio for 3 s") }
+            else if Date().timeIntervalSince(cap.lastHopAt) > 3 {
+                self.recover(reason: "no usable audio for 3 s; callbacks=\(diagnostics.rawCallbackCount), frames=\(diagnostics.rawFrameCount), format=\(diagnostics.lastBufferFormat ?? "none"), decode=\(diagnostics.lastDecodeError ?? "none")")
+            }
             else if let bound = cap.boundDeviceID(), bound != cap.device.id {
                 let name = AudioDevices.inputs().first { $0.id == bound }?.name ?? "\(bound)"
                 self.recover(reason: "engine drifted to \(name)")
@@ -237,6 +385,8 @@ final class AppController {
     }
 
     func disarm(reason: String? = nil) {
+        nativeCaptureID = UUID()
+        nativeAudioReady = false
         voiceBridge.cancel()
         guard state != .idle else { return }
         idleTimer?.invalidate()
@@ -244,7 +394,12 @@ final class AppController {
         heartbeat?.invalidate()
         heartbeat = nil
         recovering = false
+        lastCaptureDiagnostics = capture?.diagnostics
         capture?.stop()
+        capture?.sync {
+            self.utteranceSerial += 1 // Invalidate a transcript still finishing asynchronously.
+            self.canceled = true
+        }
         capture = nil
         Log.write("idle" + (reason.map { ": \($0)" } ?? ""))
         state = .idle
@@ -287,11 +442,15 @@ final class AppController {
                 let t = try await LiveTranscriber(locales: locales) { [weak self] update in self?.handle(update) }
                 setTranscriber(t, starting: false)
                 Log.write("transcriber ready: \(locales.joined(separator: ","))")
-                DispatchQueue.main.async { self.onStateChange?(); self.snapshot() }
+                DispatchQueue.main.async {
+                    guard !self.settings.nativeVoiceMode else { return }
+                    self.onStateChange?(); self.snapshot()
+                }
             } catch {
                 setTranscriber(nil, starting: false)
                 Log.write("transcriber failed: \(error)")
                 DispatchQueue.main.async {
+                    guard !self.settings.nativeVoiceMode else { return }
                     self.lastError = "Transcriber: \(error)"
                     self.hud.flash("Transcriber failed", detail: "\(error)", tint: .red, icon: "exclamationmark.triangle", seconds: 3)
                     self.onStateChange?()
@@ -439,6 +598,8 @@ final class AppController {
     // MARK: delivery (main)
 
     private func deliver(_ result: UtteranceResult, speechSeconds: Double, serial: Int) {
+        guard !settings.nativeVoiceMode else { return }
+        guard serial == -1 || (state != .idle && serial == utteranceSerial) else { return }
         if canceled {
             Log.write("canceled: \(result.text)")
             canceled = false
@@ -505,7 +666,8 @@ final class AppController {
     private func startSendFileWatcher() {
         let url = dispatcher.root.appendingPathComponent("send.txt")
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self, let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return }
+            guard let self, !self.settings.nativeVoiceMode,
+                  let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return }
             try? FileManager.default.removeItem(at: url)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { self.deliverText(trimmed) }
@@ -515,6 +677,7 @@ final class AppController {
     // MARK: button gestures (main)
 
     private func tapAction(count: Int, duringSpeech: Bool) {
+        guard !settings.nativeVoiceMode else { return }
         Log.write("tap x\(count)\(duringSpeech ? " while squeezed (ignored)" : "")")
         if duringSpeech { return }          // cancel is a shake now; the button does nothing while the handle is in
         lastActivity = Date()
@@ -526,5 +689,77 @@ final class AppController {
         let folder = dispatcher.currentTarget?.cwd
         ClaudeApp.newCodeSession(folder: folder, prompt: "/fxmic")
         hud.flash("New Claude Code session", detail: folder ?? "Pick a folder in Claude", tint: .blue, icon: "plus.bubble", seconds: 2.5)
+    }
+
+    func setNativeVoiceMode(_ enabled: Bool) {
+        guard enabled != settings.nativeVoiceMode else { return }
+        cancelNativeRequest()
+        let wasArmed = state != .idle
+        disarm(reason: "voice mode changed")
+        settings.nativeVoiceMode = enabled
+        voiceBridge.setSuspended(enabled)
+        activity.cancel()
+        onActivity?(.none)
+        if wasArmed { arm() }
+        onStateChange?()
+        snapshot()
+    }
+
+    func selectNativeProvider(_ provider: NativeVoiceProvider) {
+        cancelNativeRequest()
+        settings.nativeVoiceProvider = provider.rawValue
+        setNativeVoiceMode(true)
+        nativeVoiceStatus = "Selected \(provider.displayName). End the previous app's voice call before switching."
+        onStateChange?()
+        snapshot()
+    }
+
+    func openNativeVoiceApp() {
+        cancelNativeRequest()
+        let requestID = nativeRequestID
+        let provider = nativeProvider
+        nativeRequest = NativeVoiceApps.open(provider: provider) { [weak self] result in
+            guard let self, self.nativeRequestID == requestID, self.settings.nativeVoiceMode else { return }
+            self.handleNativeAppResult(result, success: "\(provider.displayName) opened. Select Sonos and start voice mode there.")
+        }
+    }
+
+    func startNativeVoice() {
+        cancelNativeRequest()
+        let requestID = nativeRequestID
+        let provider = nativeProvider
+        nativeRequest = NativeVoiceApps.startVoice(provider: provider) { [weak self] result in
+            guard let self, self.nativeRequestID == requestID, self.settings.nativeVoiceMode else { return }
+            self.handleNativeAppResult(result, success: "Voice start requested in \(provider.displayName). Check its call screen.")
+        }
+    }
+
+    func cancelNativeRequest() {
+        nativeRequest?.cancel()
+        nativeRequest = nil
+        nativeRequestID = UUID()
+    }
+
+    private func handleNativeAppResult(_ result: Result<Void, NativeVoiceAppError>, success: String) {
+        switch result {
+        case .success: nativeVoiceStatus = success
+        case .failure(let error):
+            nativeVoiceStatus = error.localizedDescription
+            let alert = NSAlert()
+            alert.messageText = "Native voice"
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+        onStateChange?()
+        snapshot()
+    }
+
+    func showNativeVoiceHelp() {
+        let alert = NSAlert()
+        alert.messageText = "Voice through your subscriptions"
+        alert.informativeText = "Choose Claude or Grok Bot, open that app, select the Sonos USB-C Line-in Adapter as its microphone, then start its built-in voice mode. Your existing sign-in and plan are used; EP2350 Voice has no API keys or model billing.\n\nStart voice (experimental) can press the verified voice button when Accessibility access is already enabled and the button is available. You can always start voice in the app yourself.\n\nStart handle feedback shows held/released markers on this Mac only. It does not mute, submit, cancel, or interrupt the native assistant. End a call in its own app before switching assistants. Microphone LEDs are not changed.\n\nStatus: \(nativeVoiceStatus)"
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 }

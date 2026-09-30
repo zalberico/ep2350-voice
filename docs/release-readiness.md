@@ -21,6 +21,25 @@
 - Verify native Voice integration separately from the local synthesis bridge.
 - Add provider adapters only alongside end-to-end tests; do not claim universal compatibility.
 
+## Subscription-native preview on the Mac mini
+
+- Claude and Grok Bot installed English voice-start controls were inspected. The app now opens either native provider and has an optional bounded Accessibility start action.
+- Native mode is the default and uses a separate marker-only capture path. It does not transcribe/deliver text, play local speech, or change the device buffer size.
+- Seventeen Swift tests pass, including synthetic marker sequences, exact native voice-label matching, cancellation of queued native actions, PCM sample formats/channel layouts, and owned CoreMedia sample-buffer copies. Forty-one Python tests pass across the offline LED foundation and optional device adapter.
+- No model or speech API client, API credentials, extra billing settings, or microphone firmware changes were added. The optional LED script was separately installed and tested on the connected device.
+- The user confirmed Sonos voice audio in both Claude and Grok Bot, restored Listening/meter feedback with Mac mini speakers on 0.2.2, and the optional device adapter's physical hold/release LED pattern. The adapter's startup hook is saved and read back; normal power-cycle validation is pending. The helper's experimental voice-start invocation remains unverified. Squeeze-to-interrupt native playback is not implemented.
+- Existing Swift concurrency warnings in the legacy transcription/synthesis path remain; passing release tests do not establish race-free legacy behavior.
+
+### Sonos with AirPlay output: live capture failure
+
+After the native preview restart, microphone permission was granted and Sonos was selected, but the helper received zero raw audio callbacks. Sonos's nominal and hardware input rates were 48 kHz; AVAudioEngine exposed its input output format at 44.1 kHz, matching the selected AirPlay output. The earlier working session logged 48 kHz. The display could show the permission toast, but without samples it could not detect physical markers. Automated marker/PCM tests did not cover this hardware configuration.
+
+The diagnostic preview now distinguishes an opened device from received audio, records callback/frame/format diagnostics without recording speech, and stops recovery after three failed retries.
+
+With Mac mini speakers selected, restarting the unchanged installed 0.2.1 diagnostic preview restored matching 48 kHz formats and continuous usable samples. The user then confirmed both **Handle held** and **Handle released** toasts. This verifies local marker feedback in that configuration. The user also recalls failure before selecting AirPlay, so the original regression's full cause is not established by this comparison.
+
+Source for 0.2.2 replaces the AVAudioEngine input graph with exact-UID, input-only AVCapture, checks delivered sample rates, preserves stopped-stream diagnostics, clears stale recovery status, and guards HUD hide completions against a newer toast. Its seventeen Swift tests pass. The 0.2.2 app was subsequently installed, real Sonos audio was confirmed at 48 kHz, and the user verified the restored yellow Listening toast and live meter with Mac mini speakers. The earlier successful Claude and Grok Bot voice tests used the working 0.2.1 installation. AirPlay support remains unverified.
+
 ## Distribution boundaries
 
 Preserve the MIT license and upstream attribution. Exclude generated device scripts, vendor firmware, factory samples, PDFs, personal backups, transcripts, credentials, build caches, and local signing material. This source package intentionally contains no compiled binary or captured user speech.

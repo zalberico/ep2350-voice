@@ -55,6 +55,7 @@ final class HUDController {
     let model = HUDModel()
     private let panel: HUDPanel
     private var hideWork: DispatchWorkItem?
+    private var presentationGeneration: UInt64 = 0
     private var lastPartial = ""
     private var target = ""
     private var suppressPartials = false
@@ -88,6 +89,7 @@ final class HUDController {
 
     func show() {
         guard Settings.shared.hudEnabled else { return }
+        presentationGeneration &+= 1
         hideWork?.cancel()
         guard panel.alphaValue < 1 || !panel.isVisible else { return }   // already on screen: change in place, no motion
         place()
@@ -105,20 +107,25 @@ final class HUDController {
 
     func hide(after delay: TimeInterval = 0) {
         hideWork?.cancel()
+        presentationGeneration &+= 1
+        let generation = presentationGeneration
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.panel.isVisible else { return }
+            guard let self, self.presentationGeneration == generation, self.panel.isVisible else { return }
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.15
                 ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
                 self.panel.animator().setFrame(self.hiddenFrame, display: true)
                 self.panel.animator().alphaValue = 0
-            }) { self.panel.orderOut(nil) }
+            }) { [weak self] in
+                guard let self, self.presentationGeneration == generation else { return }
+                self.panel.orderOut(nil)
+            }
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    /// Handle released, transcript being finalized and typed: same toast, new label.
+    /// Local input feedback while the microphone handle is held.
     func listening(target: String) {
         suppressPartials = false
         model.title = "Listening"
@@ -130,6 +137,16 @@ final class HUDController {
     }
 
     func partial(_ text: String) {}          // the transcript is not shown
+
+    /// The local microphone monitor is listening; this does not report provider state.
+    func handleHeld() {
+        listening(target: "")
+    }
+
+    func handleReleased() {
+        // Fade the local meter out; the native app does not expose sending/sent confirmation.
+        hide()
+    }
 
     func sending() {
         model.title = "Sending…"
@@ -162,6 +179,7 @@ final class HUDController {
         model.title = message
         model.tint = tint
         model.icon = icon
+        model.showMeter = false
         model.level = -60
         show()
         hide(after: seconds)

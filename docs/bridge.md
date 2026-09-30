@@ -2,6 +2,8 @@
 
 This transport decouples microphone controls from assistant providers. The prototype's playback is local Apple speech synthesis. A natural voice transport remains future work.
 
+This is the separate developer path. Select **Mode → Local transcription / bridge** before using it. The default Native voice mode suspends the bridge: no reply polling, synthesis or transcript delivery occurs there. Native Claude/Grok Bot use their own subscription voice instead; see [native voice](native-voice.md).
+
 Enable before starting the app:
 
 ```sh
