@@ -29,7 +29,8 @@ These are local prototype results, not a compatibility guarantee for every devic
 | Native Grok Bot voice with Sonos | User confirmed it hears speech and replies using its native voice |
 | Mac mini, Sonos input, Mac mini speaker output | App 0.2.2 received real 48 kHz input; user confirmed the yellow Listening toast and moving meter. Installed 0.2.3 also receives usable Sonos audio at 48 kHz |
 | Lower-bank squeeze/release LEDs | User confirmed the physical pattern; startup hook was saved and read back, and the user reported the lights still working after a restart. Repeatable battery-only cold-start testing remains open |
-| iPhone Air + Sonos in Apple Notes dictation | User tested whispered speech with the phone far away: words appeared while the mic handle was held, and did not appear when released. This verifies the tested input/handle-gating path; Remote voice is a separate test |
+| iPhone Air + Sonos in Apple Notes dictation | User tested whispered speech with the phone far away: words appeared while the mic handle was held, and did not appear when released |
+| iPhone Air + Sonos in Remote voice | User reported a working voice conversation that continued with the screen locked. Simultaneous input capture by a separate helper is a different, untested configuration |
 | Automatic Sonos reconnection in 0.2.3 | Live unplug/replug passed: logs show automatic reopening, usable 48 kHz audio, and new handle events; user confirmed the Listening toast returned without restarting. Cancellation, stale requests, permission loss, idle expiry, and bounded retries are covered by automated tests |
 | Automated checks | 23 Swift release tests pass for 0.2.3; the unchanged published LED checkpoint previously passed 41 Python tests |
 
@@ -39,8 +40,9 @@ Claude and Grok Bot's successful live voice tests used the working 0.2.1 helper;
 
 - **Direct squeeze-to-interrupt or release-to-submit in native voice.** A native service may react to your speech, but the helper does not control its playback or turn submission. Shaking cannot retract audio it has already heard.
 - **Show actual assistant thinking or speaking on the mic.** The current microphone-to-Sonos audio connection has no verified return channel for assistant status. A prototype requiring a second USB cable does not meet the intended everyday setup and is deferred.
+- **Replay a native voice reply with a physical button.** Repeat/replay remains a proposal. The older prototype could stop its own synthesized speech, but it has no replay-button action either.
 - **Approve Codex permission prompts with the orange button.** This feature is blocked: there is no verified integration with the existing desktop chat's live approval prompt. The detector-only prototype was stopped; no new orange-button mapping is installed.
-- **Run the Mac helper on an iPhone.** There is no iOS companion app in this repository. Sonos input and physical handle gating passed the Apple Notes dictation test on the iPhone Air; voice through Remote still needs testing. The microphone's own scripts remain on the mic, while Mac toasts, marker monitoring, and app controls do not automatically move to the phone.
+- **Transfer the Mac helper to an iPhone.** The repository now includes a separate [iPhone input-sharing probe](docs/iphone-probe.md), not a finished iOS companion. Sonos input passed Notes dictation and user-reported Remote voice tests, including a locked screen. The microphone's own scripts remain on the mic; Mac toasts and app controls do not automatically move to the phone. A Dynamic Island display is not implemented.
 
 The optional **Start voice (experimental)** menu action attempts to press a native app's voice-start button using Accessibility. The installed English button labels were inspected and matching/cancellation are tested, but this helper action has not passed a live call test. Starting voice manually in the native app is the verified workflow. AirPlay/HomePod output with the latest capture implementation is also unverified.
 
@@ -66,15 +68,15 @@ The intended mobile workflow is:
 
 The microphone supplies audio and runs its local scripts. The iPhone handles the voice connection. The Mac mini remains awake and online to run the chat's tools and project work. This basic workflow uses the existing ChatGPT subscription and Remote feature; it does not require this Mac helper to run on iOS or a new model API integration.
 
-The first link has passed a user test in **Apple Notes dictation on iPhone Air**: whispered speech with the phone far away appeared while the handle was held, and did not appear when released. **The complete Remote voice path has not yet been tested with this mic/adapter.**
+The first link has passed a user test in **Apple Notes dictation on iPhone Air**: whispered speech with the phone far away appeared while the handle was held, and did not appear when released. The user subsequently reported a working Remote voice conversation through this setup and confirmed that speaking continued with the screen locked.
 
-For that next test, open **Codex** in the ChatGPT iPhone app (or **Remote** if it still uses that label), select the connected Mac mini, open the desired chat, and start voice there. The phone and host must be paired to the same account/workspace, and the Mac must remain awake and online. A successful test should confirm both microphone input and a simple task executed on the Mac. See the official [Remote connection guide](https://learn.chatgpt.com/docs/remote-connections) and [voice documentation](https://learn.chatgpt.com/docs/features/voice).
+To use this setup, open **Codex** in the ChatGPT iPhone app (or **Remote** if it still uses that label), select the connected Mac mini, open the desired chat, and start voice there. The phone and host must be paired to the same account/workspace, and the Mac must remain awake and online. Voice input has been reported working; a dedicated round-trip check of a simple task executed on the Mac is still useful. See the official [Remote connection guide](https://learn.chatgpt.com/docs/remote-connections) and [voice documentation](https://learn.chatgpt.com/docs/features/voice).
 
-For walking around with the phone in a pocket, also test that the same Remote voice call continues with the iPhone screen locked and that replies are audible. OpenAI documents **Settings → Voice → Background conversations** for mobile voice; the exact Remote/adapter combination still needs a live lock-screen test. See [background voice behavior](https://help.openai.com/en/articles/20001274-chatgpt-voice).
+The user confirmed speaking through the same Remote voice call with the iPhone screen locked. Longer pocket-use sessions, routing changes, and power consumption remain untested. OpenAI documents **Settings → Voice → Background conversations** for mobile voice. See [background voice behavior](https://help.openai.com/en/articles/20001274-chatgpt-voice).
 
-This path does not transfer the Mac's Listening toast to iOS or add the unimplemented approval button, direct playback control, or assistant-status LEDs. A separate iPhone companion would be new work and is not required merely to speak to the Mac-hosted chat through Remote.
+This path does not transfer the Mac's Listening toast to iOS or add the unimplemented approval button, direct playback control, or assistant-status LEDs. The separate iPhone probe tests microphone sharing; it is not required merely to speak to the Mac-hosted chat through Remote.
 
-An iPhone **Live Activity in Dynamic Island** is a possible future Listening display, using [Apple's ActivityKit](https://developer.apple.com/documentation/ActivityKit). The unresolved part is observing the handle markers while Remote uses the microphone: a second recording session may conflict with the voice call, and [audio-session activation can fail when another app hosts a call](https://developer.apple.com/documentation/avfaudio/avaudiosession/setactive(_:options:)). Concurrent input and background/locked-phone behavior must be tested before building that UI; a smooth live meter is not yet established.
+An iPhone **Live Activity in Dynamic Island** is a possible future Listening display, using [Apple's ActivityKit](https://developer.apple.com/documentation/ActivityKit). The unresolved part is observing the handle markers while Remote uses the microphone: a second recording session may conflict with the voice call, and [audio-session activation can fail when another app hosts a call](https://developer.apple.com/documentation/avfaudio/avaudiosession/setactive(_:options:)). The [new probe](docs/iphone-probe.md) is the first step: concurrent input alongside Remote and the probe's own background/locked-phone behavior must be tested before building that UI; a smooth live meter is not yet established.
 
 ## Build and install
 
@@ -111,10 +113,10 @@ swift run -c release fxmic-cal --device Sonos --meter --no-record --duration 20
 
 ## Next checks
 
-1. With the iPhone Air/Sonos input test in Apple Notes complete, test a voice conversation through Remote with the Mac awake. This checks the native voice path; it does not run the Mac helper on iOS.
+1. With Notes and Remote voice input reported working on iPhone Air, test the new iPhone probe alongside Remote on the real phone, in both startup orders and with the screen locked.
 2. Repeat battery-only microphone startup and reconnection tests, and test AirPlay output with the new capture path.
 3. Revisit thinking LEDs only if a return channel fits the desired hardware setup. Revisit the approval button only after a working approval integration is established.
-4. Explore an iPhone Live Activity/Dynamic Island Listening indicator only after verifying that handle events can be observed without disrupting Remote voice. No iPhone companion is implemented.
+4. Explore an iPhone Live Activity/Dynamic Island Listening indicator only after verifying that handle events can be observed without disrupting Remote voice. Only the input-sharing probe is implemented so far.
 5. Improve guided setup, calibration, backup/restore, and second-Mac validation before offering signed/notarized releases.
 
 See [release readiness](docs/release-readiness.md) for remaining limits and capture-test history.

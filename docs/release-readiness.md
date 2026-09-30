@@ -46,7 +46,11 @@ Preserve the MIT license and upstream attribution. Exclude generated device scri
 
 ## Current usage scope
 
-Everyday use is battery-powered with only the microphone's bottom audio cable, through Sonos. Persistent-USB assistant-state LEDs are deferred because they do not fit this setup. Orange-button approval remains blocked on a verified integration with the existing Codex desktop approval prompt; the detector-only prototype was stopped without device or app installation. The user subsequently tested Sonos input on the iPhone Air in Apple Notes dictation: whispered speech was transcribed with the phone far away while the handle was held, and was not transcribed when released. Remote voice remains a separate pending test. No iOS companion is implemented; Mac feedback and controls do not automatically follow the microphone onto the phone.
+Everyday use is battery-powered with only the microphone's bottom audio cable, through Sonos. Persistent-USB assistant-state LEDs are deferred because they do not fit this setup. Orange-button approval remains blocked on a verified integration with the existing Codex desktop approval prompt; the detector-only prototype was stopped without device or app installation.
+
+The user tested Sonos input on the iPhone Air in Apple Notes dictation: whispered speech was transcribed with the phone far away while the handle was held, and was not transcribed when released. The user then confirmed a Remote voice conversation through Sonos, including continued operation with the iPhone locked. This verifies the existing microphone-to-Remote audio path. Mac feedback and controls do not automatically follow the microphone onto the phone.
+
+A separate, bounded iPhone input-sharing probe is implemented and passes unsigned device/simulator builds and the offline signal checks in `tools/test-ios-probe.sh`. Physical simultaneous capture by the probe and Remote remains unverified, including both app-start orders and locked-screen operation with both active. The confirmed Remote-only test does not establish that microphone sharing works. The probe is not a finished companion, and no Live Activity or Dynamic Island display is implemented. See [the probe test plan](iphone-probe.md).
 
 ## Native input reconnection preview (0.2.3)
 

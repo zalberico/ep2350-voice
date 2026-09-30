@@ -1,0 +1,298 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* EP2350ProbeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* EP2350ProbeApp.swift */; };
+		A10000000000000000000002 /* ProbeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ProbeView.swift */; };
+		A10000000000000000000003 /* ProbeCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* ProbeCapture.swift */; };
+		A10000000000000000000004 /* NativeHandleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* NativeHandleMonitor.swift */; };
+		A10000000000000000000005 /* ChirpDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* ChirpDetector.swift */; };
+		A10000000000000000000006 /* Goertzel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* Goertzel.swift */; };
+		A10000000000000000000007 /* Levels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Levels.swift */; };
+		A10000000000000000000008 /* ProbeSignalAccumulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* ProbeSignalAccumulator.swift */; };
+		A10000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* Assets.xcassets */; };
+		A1000000000000000000000A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* PrivacyInfo.xcprivacy */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* EP2350ProbeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EP2350ProbeApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* ProbeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeView.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* ProbeCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeCapture.swift; sourceTree = "<group>"; };
+		A20000000000000000000004 /* NativeHandleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeHandleMonitor.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* ChirpDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChirpDetector.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* Goertzel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goertzel.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* Levels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Levels.swift; sourceTree = "<group>"; };
+		A20000000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A20000000000000000000009 /* EP2350Probe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EP2350Probe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A2000000000000000000000A /* ProbeSignalAccumulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeSignalAccumulator.swift; sourceTree = "<group>"; };
+		A2000000000000000000000B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A2000000000000000000000C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000000000000000000002 /* EP2350Probe */,
+				A40000000000000000000005 /* EP2350ProbeCore */,
+				A40000000000000000000003 /* Shared marker detection */,
+				A40000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000000000000000000002 /* EP2350Probe */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* EP2350ProbeApp.swift */,
+				A20000000000000000000002 /* ProbeView.swift */,
+				A20000000000000000000003 /* ProbeCapture.swift */,
+				A20000000000000000000008 /* Info.plist */,
+				A2000000000000000000000B /* Assets.xcassets */,
+				A2000000000000000000000C /* PrivacyInfo.xcprivacy */,
+			);
+			path = EP2350Probe;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000003 /* Shared marker detection */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000004 /* NativeHandleMonitor.swift */,
+				A20000000000000000000005 /* ChirpDetector.swift */,
+				A20000000000000000000006 /* Goertzel.swift */,
+				A20000000000000000000007 /* Levels.swift */,
+			);
+			name = "Shared marker detection";
+			path = ../Sources/FXMicCore;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000009 /* EP2350Probe.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A40000000000000000000005 /* EP2350ProbeCore */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000000000000000000A /* ProbeSignalAccumulator.swift */,
+			);
+			path = EP2350ProbeCore;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* EP2350Probe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A90000000000000000000002 /* Build configuration list for PBXNativeTarget "EP2350Probe" */;
+			buildPhases = (
+				A30000000000000000000002 /* Sources */,
+				A30000000000000000000001 /* Frameworks */,
+				A30000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EP2350Probe;
+			productName = EP2350Probe;
+			productReference = A20000000000000000000009 /* EP2350Probe.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A60000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					A50000000000000000000001 = {
+						CreatedOnToolsVersion = 27.0;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A90000000000000000000001 /* Build configuration list for PBXProject "EP2350Probe" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A40000000000000000000001;
+			productRefGroup = A40000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A50000000000000000000001 /* EP2350Probe */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000009 /* Assets.xcassets in Resources */,
+				A1000000000000000000000A /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* EP2350ProbeApp.swift in Sources */,
+				A10000000000000000000002 /* ProbeView.swift in Sources */,
+				A10000000000000000000003 /* ProbeCapture.swift in Sources */,
+				A10000000000000000000004 /* NativeHandleMonitor.swift in Sources */,
+				A10000000000000000000005 /* ChirpDetector.swift in Sources */,
+				A10000000000000000000006 /* Goertzel.swift in Sources */,
+				A10000000000000000000007 /* Levels.swift in Sources */,
+				A10000000000000000000008 /* ProbeSignalAccumulator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A80000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A80000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A80000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EP2350Probe/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.ep2350.voice.probe;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A80000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EP2350Probe/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = local.ep2350.voice.probe;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A90000000000000000000001 /* Build configuration list for PBXProject "EP2350Probe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000001 /* Debug */,
+				A80000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A90000000000000000000002 /* Build configuration list for PBXNativeTarget "EP2350Probe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A80000000000000000000003 /* Debug */,
+				A80000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A60000000000000000000001 /* Project object */;
+}

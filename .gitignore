@@ -12,3 +12,5 @@ voice-bridge/
 firmware/fxmic/main.py
 firmware/original/
 backups/
+xcuserdata/
+*.xcuserstate
