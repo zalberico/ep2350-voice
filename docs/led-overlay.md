@@ -16,8 +16,8 @@ with no reported error and the original tick counter continued advancing.
 
 After that test, a guarded optional import/install was appended to the device's
 boot stub. The resulting 208-byte file was synced and read back successfully;
-the original 76-byte stub is backed up. **A normal power-cycle test is still
-pending.** The existing `fxmic.py`, sample files, audio configuration, and firmware
+the original 76-byte stub is backed up. **The user subsequently reported the lights still working after a restart;
+repeatable battery-only cold-start validation is still pending.** The existing `fxmic.py`, sample files, audio configuration, and firmware
 were not replaced. The general installer still does not enable this add-on.
 
 The user observed the lower bank with one light at sample index 0, two at index

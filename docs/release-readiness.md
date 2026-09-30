@@ -1,8 +1,8 @@
 # Release readiness
 
-## Confirmed in the local prototype
+## Earlier local transcription prototype
 
-- Official FX MIC 1.1.2 update completed and verified over USB.
+- Firmware 1.1.2 and the custom scripts were already installed when Mac mini setup began. The earlier prototype had verified that firmware over USB; the Mac mini work did not flash it.
 - Generated mic script and control sounds installed with byte-for-byte verification.
 - Sonos input recognized; local English transcription accepted after level calibration.
 - Squeeze interrupted local synthesized speech; user confirmed it felt responsive.
@@ -11,13 +11,13 @@
 
 ## Required before an easy public release
 
-- Implement and test a persistent assistant connector. The current demonstration relies on an active task and local files.
+- For the older local synthesis bridge, implement and test a persistent assistant connector. That demonstration relies on an active task and local files; native subscription voice does not need this connector.
 - Test on a clean second Mac and all claimed hardware/firmware variants.
 - Provide a signed/notarized application and stable permissions across upgrades.
 - Add guided setup, input calibration, explicit output selection, diagnostics, and recovery.
 - Harden audio-device loss, concurrent transcription, stale callbacks, session cancellation, and event log retention.
 - Test installation failures and restoration from backup. Drive backups do not restore firmware.
-- Measure physical squeeze-to-acoustic-silence latency; software event timestamps alone are insufficient.
+- For the older local synthesis bridge, measure physical squeeze-to-acoustic-silence latency; software event timestamps alone are insufficient. Native playback interruption is a separate unimplemented integration.
 - Verify native Voice integration separately from the local synthesis bridge.
 - Add provider adapters only alongside end-to-end tests; do not claim universal compatibility.
 
@@ -27,7 +27,7 @@
 - Native mode is the default and uses a separate marker-only capture path. It does not transcribe/deliver text, play local speech, or change the device buffer size.
 - Seventeen Swift tests pass, including synthetic marker sequences, exact native voice-label matching, cancellation of queued native actions, PCM sample formats/channel layouts, and owned CoreMedia sample-buffer copies. Forty-one Python tests pass across the offline LED foundation and optional device adapter.
 - No model or speech API client, API credentials, extra billing settings, or microphone firmware changes were added. The optional LED script was separately installed and tested on the connected device.
-- The user confirmed Sonos voice audio in both Claude and Grok Bot, restored Listening/meter feedback with Mac mini speakers on 0.2.2, and the optional device adapter's physical hold/release LED pattern. The adapter's startup hook is saved and read back; normal power-cycle validation is pending. The helper's experimental voice-start invocation remains unverified. Squeeze-to-interrupt native playback is not implemented.
+- The user confirmed Sonos voice audio in both Claude and Grok Bot, restored Listening/meter feedback with Mac mini speakers on 0.2.2, and the optional device adapter's physical hold/release LED pattern. The adapter's startup hook is saved and read back; the user reported lights still working after a restart, while repeatable battery-only cold-start validation remains pending. The helper's experimental voice-start invocation remains unverified. Squeeze-to-interrupt native playback is not implemented.
 - Existing Swift concurrency warnings in the legacy transcription/synthesis path remain; passing release tests do not establish race-free legacy behavior.
 
 ### Sonos with AirPlay output: live capture failure
@@ -43,3 +43,7 @@ Source for 0.2.2 replaces the AVAudioEngine input graph with exact-UID, input-on
 ## Distribution boundaries
 
 Preserve the MIT license and upstream attribution. Exclude generated device scripts, vendor firmware, factory samples, PDFs, personal backups, transcripts, credentials, build caches, and local signing material. This source package intentionally contains no compiled binary or captured user speech.
+
+## Current usage scope
+
+Everyday use is battery-powered with only the microphone's bottom audio cable, through Sonos. Persistent-USB assistant-state LEDs are deferred because they do not fit this setup. Orange-button approval remains blocked on a verified integration with the existing Codex desktop approval prompt; the detector-only prototype was stopped without device or app installation. The user subsequently tested Sonos input on the iPhone Air in Apple Notes dictation: whispered speech was transcribed with the phone far away while the handle was held, and was not transcribed when released. Remote voice remains a separate pending test. No iOS companion is implemented; Mac feedback and controls do not automatically follow the microphone onto the phone.
