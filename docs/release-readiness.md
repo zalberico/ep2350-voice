@@ -47,3 +47,11 @@ Preserve the MIT license and upstream attribution. Exclude generated device scri
 ## Current usage scope
 
 Everyday use is battery-powered with only the microphone's bottom audio cable, through Sonos. Persistent-USB assistant-state LEDs are deferred because they do not fit this setup. Orange-button approval remains blocked on a verified integration with the existing Codex desktop approval prompt; the detector-only prototype was stopped without device or app installation. The user subsequently tested Sonos input on the iPhone Air in Apple Notes dictation: whispered speech was transcribed with the phone far away while the handle was held, and was not transcribed when released. Remote voice remains a separate pending test. No iOS companion is implemented; Mac feedback and controls do not automatically follow the microphone onto the phone.
+
+## Native input reconnection preview (0.2.3)
+
+The 0.2.2 helper stopped after Sonos was unplugged and stayed idle when it returned. Restarting that installation restored real 48 kHz audio and handle events, confirming the immediate failure was stopped monitoring.
+
+Version 0.2.3 retains the exact device UID only when an active native input disappears, and resumes that input if it returns within the original idle window. Explicit Stop, input/mode changes, microphone permission loss, and idle expiry cancel the pending resume. Device notifications coalesce into one attempt, stale callbacks cannot reopen an obsolete session, and failed starts are limited to three. A pending microphone-permission response is also invalidated by Stop or an input/mode change.
+
+The release build and all 23 Swift tests pass, including six new reconnect-policy tests. Independent source review found no remaining blocker. The app was installed for the current user, its signature and installed bytes were verified, and startup delivered usable Sonos audio at 48 kHz. Live unplug/replug, Stop-while-absent, and timeout behavior on the installed Mac app remain pending; unit tests do not establish hardware recovery. No microphone scripts or firmware changed for this fix.

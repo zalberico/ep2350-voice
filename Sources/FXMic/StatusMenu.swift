@@ -102,7 +102,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         case .none: item.button?.image = StatusMenu.compose(base: symbol)
         }
         if Settings.shared.nativeVoiceMode {
-            let status = controller.state == .idle ? "Feedback off" : (!controller.nativeAudioReady ? "Waiting for input audio" : (controller.state == .listening ? "Handle held" : "Watching handle"))
+            let status = controller.nativeWaitingForInput ? "Waiting for the disconnected input" : (controller.state == .idle ? "Feedback off" : (!controller.nativeAudioReady ? "Waiting for input audio" : (controller.state == .listening ? "Handle held" : "Watching handle")))
             item.button?.toolTip = "EP2350 Voice: \(status). Native apps own voice playback. Right-click for assistants."
         } else {
             item.button?.toolTip = "EP2350 Voice: \(controller.state.rawValue). Click to \(controller.state == .idle ? "pick up" : "hang up"), right-click for the menu."
@@ -115,7 +115,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         // 1. listening toggle
         let native = Settings.shared.nativeVoiceMode
         let toggleTitle = native
-            ? (controller.state == .idle ? "Start handle feedback" : "Stop handle feedback")
+            ? (controller.state == .idle && !controller.nativeWaitingForInput ? "Start handle feedback" : "Stop handle feedback")
             : (controller.state == .idle ? "Start listening" : "Stop listening")
         let toggle = NSMenuItem(title: toggleTitle, action: #selector(toggleArmed), keyEquivalent: "")
         toggle.target = self
@@ -246,7 +246,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         guard let name = sender.representedObject as? String else { return }
         Settings.shared.deviceQuery = name
         Log.write("input device set to \(name)")
-        if controller.state != .idle { controller.disarm(reason: "Switching input") }
+        controller.disarm(reason: "Switching input")
         controller.arm()            // picking a device means: listen on it
         refresh()
     }

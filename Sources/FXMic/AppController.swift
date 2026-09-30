@@ -42,6 +42,7 @@ final class AppController {
             "audioDecodeError": audio?.lastDecodeError ?? "",
             "audioDiagnosticsFromStoppedCapture": capture == nil && lastCaptureDiagnostics != nil,
             "nativeAudioReady": nativeAudioReady,
+            "nativeWaitingForInput": nativeWaitingForInput,
             "nativeVoiceMode": settings.nativeVoiceMode,
             "nativeVoiceProvider": settings.nativeVoiceProvider,
             "nativePlaybackControl": "unavailable",
@@ -101,6 +102,11 @@ final class AppController {
     private var nativeCaptureID = UUID()
     private(set) var nativeAudioReady = false
     private var nativeRecoveryAttempts = 0
+    private var nativeReconnect = NativeInputReconnectPolicy()
+    private var nativeReconnectWork: DispatchWorkItem?
+    private var nativeReconnectExpiry: Timer?
+    private var nativeReconnectQuery: String?
+    var nativeWaitingForInput: Bool { nativeReconnect.isWaiting }
     private var nativeRequest: NativeActionToken?
     private var nativeRequestID = UUID()
     private(set) var nativeVoiceStatus = "Open the selected app and start its voice mode."
@@ -121,12 +127,16 @@ final class AppController {
         let now = Date()
         guard now.timeIntervalSince(lastToggle) > 0.6 else { Log.write("toggle from \(source) ignored (debounce)"); return }
         lastToggle = now
-        Log.write("toggle from \(source): \(state == .idle ? "pick up" : "hang up")")
-        state == .idle ? arm() : disarm(reason: "hung up via \(source)")
+        let stopped = state == .idle && !nativeWaitingForInput
+        Log.write("toggle from \(source): \(stopped ? "pick up" : "hang up")")
+        stopped ? arm() : disarm(reason: "hung up via \(source)")
     }
 
     func arm() {
         guard state == .idle else { return }
+        cancelNativeReconnect()  // An explicit Start replaces any old reconnect intent.
+        nativeCaptureID = UUID()
+        let armRequestID = nativeCaptureID
         lastCaptureDiagnostics = nil
         nativeRecoveryAttempts = 0
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -136,6 +146,7 @@ final class AppController {
             hud.flash("Microphone permission", detail: "Click Allow in the macOS dialog, then FXMic starts listening.", tint: .blue, icon: "mic.badge.plus", seconds: 6)
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
+                    guard self.nativeCaptureID == armRequestID, self.state == .idle else { return }
                     if granted { self.arm() } else { self.lastError = "Microphone access denied"; self.onStateChange?() }
                 }
             }
@@ -297,6 +308,17 @@ final class AppController {
     private func recover(reason: String) {
         guard state != .idle, !recovering else { return }
         if settings.nativeVoiceMode {
+            guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+                disarm(reason: "microphone permission is no longer available")
+                return
+            }
+            if let device = capture?.device,
+               !AudioDevices.inputs().contains(where: { $0.uid == device.uid }) {
+                waitForNativeInputReturn(device)
+                return
+            }
+        }
+        if settings.nativeVoiceMode {
             nativeAudioReady = false
             // Drop queued observations from the failed stream and clear stale held feedback now.
             nativeCaptureID = UUID()
@@ -324,29 +346,40 @@ final class AppController {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, self.nativeCaptureID == recoveryCaptureID else { return }
             guard self.state != .idle else { self.recovering = false; return }
-            // Device gone (adapter or mic unplugged): hang up at once. The half-second delay above filters blips.
-            guard let cap = self.capture, AudioDevices.exists(cap.device.id) else {
+            guard let cap = self.capture else { self.recovering = false; return }
+            let device = self.settings.nativeVoiceMode
+                ? AudioDevices.inputs().first(where: { $0.uid == cap.device.uid })
+                : (AudioDevices.exists(cap.device.id) ? AudioDevices.find(self.settings.deviceQuery) : nil)
+            guard let device else {
                 self.recovering = false
-                self.disarm(reason: "input device disconnected (\(self.settings.deviceQuery))")
+                if self.settings.nativeVoiceMode { self.waitForNativeInputReturn(cap.device) }
+                else { self.disarm(reason: "input device disconnected (\(self.settings.deviceQuery))") }
                 return
             }
-            // Device still there: rebuild the capture on it. (Restarting the stopped engine is not enough: it can come
-            // back bound to the default input, the built-in mic, and never hear the marker tones again.)
+            if self.settings.nativeVoiceMode,
+               AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
+                self.disarm(reason: "microphone permission is no longer available")
+                return
+            }
+            // Native recovery is pinned to the original UID, even if its CoreAudio ID changes.
             self.capture?.stop()
             self.capture = nil
-            if let device = AudioDevices.find(self.settings.deviceQuery) {
-                do {
-                    try self.startCapture(device: device)
-                    self.recovering = false
-                    Log.write("reconnected to \(device.name) at \(Int(self.sampleRate)) Hz")
-                    self.snapshot()
-                    return
-                } catch {
-                    Log.write("rebuild failed: \(error)")
-                }
+            do {
+                try self.startCapture(device: device)
+                self.recovering = false
+                Log.write("reconnected to \(device.name) at \(Int(self.sampleRate)) Hz")
+                self.snapshot()
+                return
+            } catch {
+                Log.write("rebuild failed: \(error)")
             }
             self.recovering = false
-            self.disarm(reason: "input device unusable (\(self.settings.deviceQuery))")
+            if self.settings.nativeVoiceMode,
+               !AudioDevices.inputs().contains(where: { $0.uid == cap.device.uid }) {
+                self.waitForNativeInputReturn(cap.device)
+            } else {
+                self.disarm(reason: "input device unusable (\(self.settings.deviceQuery))")
+            }
         }
     }
 
@@ -378,17 +411,133 @@ final class AppController {
         }
         if deviceListener == nil {
             deviceListener = AudioDevices.onDeviceListChange { [weak self] in
-                guard let self, self.state != .idle, !self.recovering, let cap = self.capture else { return }
-                if !AudioDevices.exists(cap.device.id) { self.recover(reason: "input device disappeared") }
+                guard let self else { return }
+                if self.nativeWaitingForInput { self.scheduleNativeReconnectIfPresent(); return }
+                guard self.state != .idle, !self.recovering, let cap = self.capture else { return }
+                if !AudioDevices.inputs().contains(where: { $0.uid == cap.device.uid }) {
+                    self.recover(reason: "input device disappeared")
+                }
             }
         }
     }
 
+    // Reconnect intent is created only by loss of an active native input. All other
+    // disarm paths revoke it, including Stop while the adapter is temporarily absent.
+    private func cancelNativeReconnect() {
+        nativeReconnect.cancel()
+        nativeReconnectWork?.cancel()
+        nativeReconnectWork = nil
+        nativeReconnectExpiry?.invalidate()
+        nativeReconnectExpiry = nil
+        nativeReconnectQuery = nil
+    }
+
+    private func waitForNativeInputReturn(_ device: AudioInputDevice) {
+        guard settings.nativeVoiceMode, state != .idle, !device.uid.isEmpty else {
+            disarm(reason: "input device disconnected")
+            return
+        }
+        let query = settings.deviceQuery
+        let limit = settings.idleMinutes * 60
+        let remaining = limit > 0 ? max(0, limit - Date().timeIntervalSince(lastActivity)) : nil
+        let now = Date().timeIntervalSinceReferenceDate
+        disarm(reason: "input device disconnected (\(device.name))")
+        nativeReconnect.waitForReturn(uid: device.uid, now: now, deadline: remaining.map { now + $0 })
+        guard nativeWaitingForInput else { return }
+        nativeReconnectQuery = query
+        lastError = "Waiting for \(device.name) to reconnect"
+        if let remaining {
+            nativeReconnectExpiry = Timer.scheduledTimer(withTimeInterval: max(0.01, remaining), repeats: false) { [weak self] _ in
+                guard let self, self.nativeReconnect.expire(now: Date().timeIntervalSinceReferenceDate) else { return }
+                self.cancelNativeReconnect()
+                self.lastError = "Handle feedback stopped at its idle timeout"
+                self.onStateChange?()
+                self.snapshot()
+            }
+        }
+        onStateChange?()
+        snapshot()
+        // Covers a fast replug between the removal notification and capture teardown.
+        scheduleNativeReconnectIfPresent()
+    }
+
+    private func scheduleNativeReconnectIfPresent() {
+        guard nativeWaitingForInput else { return }
+        guard settings.nativeVoiceMode, state == .idle,
+              settings.deviceQuery == nativeReconnectQuery else {
+            cancelNativeReconnect()
+            onStateChange?()
+            snapshot()
+            return
+        }
+        let authorized = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        let devices = AudioDevices.inputs()
+        guard let request = nativeReconnect.schedule(availableUIDs: devices.map(\.uid), authorized: authorized,
+                                                     now: Date().timeIntervalSinceReferenceDate) else {
+            if !nativeWaitingForInput {
+                cancelNativeReconnect()
+                lastError = authorized ? "Handle feedback stopped at its idle timeout" : "Microphone permission is no longer available"
+                onStateChange?()
+                snapshot()
+            }
+            return
+        }
+        let query = settings.deviceQuery
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.nativeReconnect.isPending(request) else { return }
+            self.nativeReconnectWork = nil
+            guard self.settings.nativeVoiceMode, self.state == .idle, self.settings.deviceQuery == query else {
+                self.cancelNativeReconnect()
+                return
+            }
+            let authorized = AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+            let devices = AudioDevices.inputs()
+            guard self.nativeReconnect.begin(request, availableUIDs: devices.map(\.uid), authorized: authorized,
+                                             now: Date().timeIntervalSinceReferenceDate),
+                  let device = devices.first(where: { $0.uid == request.uid }) else {
+                if !self.nativeWaitingForInput {
+                    self.cancelNativeReconnect()
+                    self.lastError = authorized ? "Handle feedback stopped at its idle timeout" : "Microphone permission is no longer available"
+                }
+                self.onStateChange?()
+                self.snapshot()
+                return
+            }
+            do {
+                // Never call arm(): it can request permission or resolve a name substring.
+                try self.startNativeCapture(device: device)
+                self.nativeReconnect.finish(request, succeeded: true)
+                self.cancelNativeReconnect()
+                self.nativeRecoveryAttempts = 0
+                self.lastError = nil
+                self.state = .armed
+                self.startIdleTimer()
+                self.startHeartbeat()
+                Log.write("resumed native feedback on returned input \(device.name)")
+                self.snapshot()
+            } catch {
+                self.nativeReconnect.finish(request, succeeded: false)
+                self.lastError = "Could not reopen \(device.name) (attempt \(request.attempt) of 3): \(error)"
+                Log.write(self.lastError!)
+                if self.nativeWaitingForInput { self.scheduleNativeReconnectIfPresent() }
+                else { self.cancelNativeReconnect() }
+                self.onStateChange?()
+                self.snapshot()
+            }
+        }
+        nativeReconnectWork = work
+        let delay = [0.4, 1.0, 2.0][min(2, request.attempt - 1)]
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
     func disarm(reason: String? = nil) {
+        let wasWaiting = nativeWaitingForInput
+        cancelNativeReconnect()
+        if wasWaiting { lastError = nil }
         nativeCaptureID = UUID()
         nativeAudioReady = false
         voiceBridge.cancel()
-        guard state != .idle else { return }
+        guard state != .idle else { onStateChange?(); snapshot(); return }
         idleTimer?.invalidate()
         idleTimer = nil
         heartbeat?.invalidate()
