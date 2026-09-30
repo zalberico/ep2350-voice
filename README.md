@@ -34,9 +34,11 @@ The native voice path and the local speech prototype are separate. Native mode n
 
 ## Audio and control connections
 
+**Normal use is audio-only:** run the microphone on batteries, with only the bottom 3.5 mm audio cable connected. The microphone's USB data cable is for setup and diagnostics, not a required everyday connection. The local squeeze/release LED script is designed to run on the microphone itself; its saved startup hook still needs a normal battery restart test.
+
 - **Audio:** EP-2350 3.5 mm output → Sonos USB-C Line-in Adapter → Mac. Select Sonos as the microphone in the native voice app.
 - **Mac feedback:** the helper detects the custom script's audio markers and shows Listening while the handle is held. It does not submit a message or stop native voice playback.
-- **Device setup and future status LEDs:** connect the microphone's own USB-C port separately with a data cable. Sonos carries audio; it is not a return channel for the Mac to control the lights.
+- **Setup only:** temporarily connect the microphone's own USB-C port with a data cable to inspect or update custom scripts. The current audio path sends sound from the microphone to the Mac; it provides no verified return channel for live assistant status. A USB status-bridge experiment would require the extra cable during use and therefore does not meet the intended setup.
 
 Start and end native voice calls in their own apps. The helper's provider selector does not transfer conversations or end a call. Native services retain their normal subscription limits.
 
@@ -120,12 +122,12 @@ Eject safely before restarting. With the mic mounted normally, remove only the a
 
 ## Next work
 
-1. **Upper-bank working LEDs:** connect actual assistant status to the mic over its direct USB connection. The current release only has physical squeeze/release feedback; it does not infer thinking or speaking from audio.
-2. **Orange approval button:** use a deliberate physical press and release for the current Codex permission prompt, choosing the broadest option actually offered. This is planned, not enabled; a reliable prompt connection and stale-click protection are required.
+1. **Upper-bank LEDs within audio-only use:** local handle-driven patterns are possible. Actual thinking/speaking indicators need a verified return channel that the current connection does not provide. A timed animation after release would only be local feedback, not assistant status; the USB-dependent design is deferred.
+2. **Orange approval button without a USB tether:** investigate a distinct audio marker, as used for existing handle events, plus a reliable connection to the current Codex permission prompt. A marker is only a possible transport; it does not by itself prove a fresh deliberate button press. Approval control is not enabled.
 3. **iPhone hub experiment:** test Sonos audio on a USB-C iPhone Air, then voice through the Remote app while the Mac stays awake. Compatibility is unverified. Mac helper controls would not automatically run on the phone.
 4. **Direct native voice controls:** verify squeeze-to-interrupt, release-to-submit, cancel/repeat, and provider switching separately for each service. Hearing microphone audio is not proof of hardware control.
 5. **Distribution:** validate microphone restart persistence, AirPlay output, clean installation and rollback on a second Mac, then add guided setup and signed/notarized releases.
 
-Thinking LEDs and approval-button integration are being developed separately from this tested checkpoint. No microphone firmware update is required for the Mac app or optional LED script work.
+LED and button experiments remain separate from this tested checkpoint. Features that require a persistent microphone USB connection are not part of the normal-use plan. No microphone firmware update is required for the Mac app or optional LED script work.
 
 See [release readiness](docs/release-readiness.md) before calling this a consumer-ready release.
